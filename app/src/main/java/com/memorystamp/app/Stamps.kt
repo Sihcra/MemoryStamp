@@ -27,6 +27,8 @@ data class Stamp(val id: Long, val title: String, val note: String, val film: St
 }
 
 /** Everything is stored on the phone; nothing leaves it unless the user shares or exports. */
+private val BACKUP_NAME = Regex("""\d+\.(png|json)""")
+
 object Stamps {
     val all = mutableStateListOf<Stamp>()
     private lateinit var dir: File
@@ -83,7 +85,8 @@ object Stamps {
     fun exportZip(context: Context, target: Uri) {
         context.contentResolver.openOutputStream(target)?.use { raw ->
             ZipOutputStream(raw).use { zip ->
-                dir.listFiles().orEmpty().filter { it.extension == "png" || it.extension == "json" }.forEach { f ->
+                val extras = listOf("pages.json", "letters.json").map { File(context.filesDir, it) }.filter { it.exists() }
+                (dir.listFiles().orEmpty().filter { BACKUP_NAME.matches(it.name) } + extras).forEach { f ->
                     zip.putNextEntry(ZipEntry(f.name))
                     f.inputStream().use { it.copyTo(zip) }
                     zip.closeEntry()
@@ -98,14 +101,20 @@ object Stamps {
         context.contentResolver.openInputStream(source)?.use { raw ->
             ZipInputStream(raw).use { zip ->
                 generateSequence { zip.nextEntry }.forEach { e ->
-                    if (Regex("""\d+\.(png|json)""").matches(e.name)) {
+                    if (BACKUP_NAME.matches(e.name)) {
                         File(dir, e.name).outputStream().use { zip.copyTo(it) }
                         if (e.name.endsWith(".png")) count++
+                    } else if (e.name == "pages.json" || e.name == "letters.json") {
+                        // ponytail: a restore replaces the scrapbook and letters instead of merging them.
+                        File(context.filesDir, e.name).outputStream().use { zip.copyTo(it) }
                     }
                 }
             }
         }
         load(context)
+        Pages.load(context)
+        Letters.load(context)
+        Letters.all.forEach { Letters.schedule(context, it) }
         return count
     }
 }

@@ -17,10 +17,19 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -38,12 +47,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -103,6 +107,7 @@ fun CameraScreen(saveToGallery: Boolean) {
     var front by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var lastStamp by remember { mutableStateOf<Bitmap?>(null) }
+    var lastId by remember { mutableStateOf(0L) }
     val scope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember {
@@ -130,74 +135,118 @@ fun CameraScreen(saveToGallery: Boolean) {
     }
     previewView.setLayerType(View.LAYER_TYPE_HARDWARE, Paint().apply { colorFilter = look.toColorFilter() })
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Spacer(Modifier.size(8.dp))
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(4.dp))
-                .pointerInput(Unit) {
-                    var dx = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dx = 0f },
-                        onDragEnd = { if (dx < -80) pick(filmIndex + 1) else if (dx > 80) pick(filmIndex - 1) },
-                    ) { _, d -> dx += d }
-                },
-        ) {
-            AndroidView({ previewView }, Modifier.fillMaxSize())
-            Canvas(Modifier.fillMaxSize()) { drawIntoCanvas { look.drawExtras(it.nativeCanvas, size.width, size.height) } }
-            Text(
-                look.film.name,
-                color = Color.White,
-                modifier = Modifier.align(Alignment.TopCenter).padding(8.dp)
-                    .background(Color(0x66000000), RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 2.dp),
+    val flash = remember { Animatable(0f) }
+    val press = remember { Animatable(1f) }
+    fun shoot() {
+        if (busy) return
+        busy = true
+        val shotLook = look
+        scope.launch {
+            launch { press.animateTo(0.96f, tween(70)); press.animateTo(1f, spring(dampingRatio = 0.4f)) }
+            launch { flash.snapTo(0.9f); flash.animateTo(0f, tween(450)) }
+            runCatching {
+                val photo = capture.take(context)
+                val stamp = withContext(Dispatchers.Default) {
+                    makeStamp(shotLook.develop(photo.orient(front).centerSquare()))
+                }
+                val saved = withContext(Dispatchers.IO) {
+                    Stamps.add(stamp, shotLook.film.name).also { if (saveToGallery) Stamps.copyToGallery(context, it) }
+                }
+                lastStamp = loadThumb(saved.image, 200)
+                lastId = saved.id
+            }.onFailure { Toast.makeText(context, "Chụp lỗi: ${it.message}", Toast.LENGTH_SHORT).show() }
+            busy = false
+        }
+    }
+
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("Chụp một khoảnh khắc", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 12.dp))
+        Text("vuốt trên màn hình để đổi filter", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
+        Spacer(Modifier.size(14.dp))
+
+        // The camera: a pastel body with a viewfinder bump, a flash and a shutter on top; the live preview is its screen.
+        Box(Modifier.fillMaxWidth().graphicsLayer { scaleX = press.value; scaleY = press.value }) {
+            Box(Modifier.padding(start = 28.dp).size(64.dp, 30.dp).background(Palette.Butter, RoundedCornerShape(12.dp)))
+            Box(
+                Modifier.align(Alignment.TopEnd).padding(end = 30.dp).size(58.dp, 34.dp)
+                    .background(Palette.Rose, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 6.dp, bottomEnd = 6.dp))
+                    .clickable(enabled = !busy, onClickLabel = "Chụp tem", onClick = ::shoot),
             )
+            Column(
+                Modifier.padding(top = 18.dp).fillMaxWidth().shadow(10.dp, RoundedCornerShape(36.dp), ambientColor = Palette.Rose, spotColor = Palette.Rose)
+                    .background(Palette.Pink, RoundedCornerShape(36.dp)).padding(16.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(14.dp).background(Palette.Paper, CircleShape))
+                    Spacer(Modifier.size(8.dp))
+                    Box(Modifier.size(8.dp).background(if (busy) Palette.Butter else Palette.Mint, CircleShape))
+                    Spacer(Modifier.weight(1f))
+                    Text("MEMORY STAMP", style = MaterialTheme.typography.labelSmall, color = Palette.Paper, letterSpacing = 2.sp)
+                }
+                Spacer(Modifier.size(12.dp))
+                Box(
+                    Modifier.fillMaxWidth().aspectRatio(1f).background(Palette.Paper, RoundedCornerShape(24.dp)).padding(8.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .pointerInput(Unit) {
+                            var dx = 0f
+                            detectHorizontalDragGestures(
+                                onDragStart = { dx = 0f },
+                                onDragEnd = { if (dx < -80) pick(filmIndex + 1) else if (dx > 80) pick(filmIndex - 1) },
+                            ) { _, d -> dx += d }
+                        },
+                ) {
+                    AndroidView({ previewView }, Modifier.fillMaxSize())
+                    Canvas(Modifier.fillMaxSize()) { drawIntoCanvas { look.drawExtras(it.nativeCanvas, size.width, size.height) } }
+                    Box(Modifier.fillMaxSize().graphicsLayer { alpha = flash.value }.background(Color.White))
+                    Text(
+                        look.film.name,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Palette.Ink,
+                        modifier = Modifier.align(Alignment.TopCenter).padding(8.dp)
+                            .background(Palette.Paper.copy(alpha = 0.85f), CircleShape).padding(horizontal = 12.dp, vertical = 3.dp),
+                    )
+                }
+                Spacer(Modifier.size(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(52.dp), contentAlignment = Alignment.Center) {
+                        lastStamp?.let {
+                            Image(it.asImageBitmap(), "Tem vừa chụp", Modifier.size(48.dp).rotate(tiltOf(lastId)))
+                        }
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Box(
+                        Modifier.size(64.dp).background(Palette.Paper, CircleShape).padding(6.dp)
+                            .background(if (busy) Palette.InkSoft else Palette.Rose, CircleShape)
+                            .clickable(enabled = !busy, onClickLabel = "Chụp tem", onClick = ::shoot),
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Bubble(R.drawable.ic_flip, "Đổi camera", color = Palette.Paper, size = 48.dp) { front = !front }
+                }
+            }
         }
 
         val listState = rememberLazyListState()
         LaunchedEffect(filmIndex) { listState.animateScrollToItem(maxOf(0, filmIndex - 1)) }
-        LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
-            itemsIndexed(FILMS) { i, f ->
-                FilterChip(selected = i == filmIndex, onClick = { pick(i) }, label = { Text(f.name) })
-            }
+        LazyRow(state = listState, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 18.dp)) {
+            itemsIndexed(FILMS) { i, f -> Pill(f.name, i == filmIndex) { pick(i) } }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Độ mạnh", style = MaterialTheme.typography.labelMedium)
-            Slider(value = look.strength, onValueChange = { look = look.copy(strength = it) }, modifier = Modifier.padding(start = 12.dp))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(look.grain, { look = look.copy(grain = !look.grain) }, { Text("Hạt") })
-            FilterChip(look.vignette, { look = look.copy(vignette = !look.vignette) }, { Text("Viền tối") })
-            FilterChip(look.leak, { look = look.copy(leak = !look.leak) }, { Text("Lóa sáng") })
-            FilterChip(look.date, { look = look.copy(date = !look.date) }, { Text("Ngày") })
-        }
-
-        Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(56.dp)) {
-                lastStamp?.let { Image(it.asImageBitmap(), "Tem vừa chụp", Modifier.fillMaxSize()) }
-            }
-            Box(
-                Modifier.size(76.dp).border(4.dp, MaterialTheme.colorScheme.primary, CircleShape).padding(8.dp)
-                    .background(if (busy) Color.Gray else MaterialTheme.colorScheme.primary, CircleShape)
-                    .clickable(enabled = !busy, onClickLabel = "Chụp tem") {
-                        busy = true
-                        val shotLook = look
-                        scope.launch {
-                            runCatching {
-                                val photo = capture.take(context)
-                                val stamp = withContext(Dispatchers.Default) {
-                                    makeStamp(shotLook.develop(photo.orient(front).centerSquare()))
-                                }
-                                val saved = withContext(Dispatchers.IO) {
-                                    Stamps.add(stamp, shotLook.film.name).also { if (saveToGallery) Stamps.copyToGallery(context, it) }
-                                }
-                                lastStamp = loadThumb(saved.image, 160)
-                            }.onFailure { Toast.makeText(context, "Chụp lỗi: ${it.message}", Toast.LENGTH_SHORT).show() }
-                            busy = false
-                        }
-                    },
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 6.dp)) {
+            Text("Độ mạnh", style = MaterialTheme.typography.labelMedium, color = Palette.InkSoft)
+            Slider(
+                value = look.strength,
+                onValueChange = { look = look.copy(strength = it) },
+                modifier = Modifier.padding(start = 12.dp),
+                colors = SliderDefaults.colors(thumbColor = Palette.Rose, activeTrackColor = Palette.Pink, inactiveTrackColor = Palette.PinkSoft),
             )
-            IconButton(onClick = { front = !front }, modifier = Modifier.size(56.dp)) {
-                Icon(Icons.Filled.Refresh, "Đổi camera")
-            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 16.dp)) {
+            Pill("Hạt", look.grain) { look = look.copy(grain = !look.grain) }
+            Pill("Viền tối", look.vignette) { look = look.copy(vignette = !look.vignette) }
+            Pill("Lóa sáng", look.leak) { look = look.copy(leak = !look.leak) }
+            Pill("Ngày", look.date) { look = look.copy(date = !look.date) }
         }
     }
 }
