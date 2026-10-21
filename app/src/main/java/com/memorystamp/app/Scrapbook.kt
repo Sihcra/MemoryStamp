@@ -88,13 +88,13 @@ data class Item(
     val y: Float = 0.45f,
     val scale: Float = 1f,
     val rotation: Float = 0f,
-    val color: Int = Palette.Ink.toArgb(),
+    val color: Int = 0xFF262420.toInt(),
 )
 
 data class Page(val id: Long, val bg: Int, val items: List<Item>)
 
-val PAGE_COLORS = listOf(Palette.Paper, Palette.PinkSoft, Palette.Mint, Palette.Butter, Palette.Sky, Palette.Lilac)
-val TEXT_COLORS = listOf(Palette.Ink, Palette.Rose, Color(0xFF6BAF92), Color(0xFF6E8FC9), Color(0xFFD9A441))
+val PAGE_COLORS = listOf(Palette.Paper, Palette.Blush, Palette.Mint, Palette.Butter, Palette.Sky, Palette.Lilac)
+val TEXT_COLORS = listOf(Color(0xFF262420), Color(0xFFC0575B), Color(0xFF5E9C7E), Color(0xFF5B7FB8), Color(0xFFC99A3A))
 val STICKERS = listOf("♡", "✿", "☆", "☁", "♪", "✧", "🎀", "🌷", "🍓", "🌙", "☀️", "🐻", "🐰", "🍰", "💌", "🌈")
 
 // Base sizes as a fraction of page width; the same numbers drive the screen and the exported PNG.
@@ -164,8 +164,9 @@ fun renderPage(context: Context, page: Page, w: Int = 1080): Bitmap {
         when (item.kind) {
             "stamp" -> Stamps.all.firstOrNull { it.id.toString() == item.value }?.let { s ->
                 loadThumb(s.image, (w * STAMP_W * 2).toInt())?.let { bmp ->
-                    val half = w * STAMP_W / 2
-                    c.drawBitmap(bmp, Rect(0, 0, bmp.width, bmp.height), RectF(-half, -half, half, half), paint)
+                    val hw = w * STAMP_W / 2
+                    val hh = hw * bmp.height / bmp.width
+                    c.drawBitmap(bmp, Rect(0, 0, bmp.width, bmp.height), RectF(-hw, -hh, hw, hh), paint)
                 }
             }
             "sticker" -> {
@@ -209,7 +210,7 @@ fun ScrapbookScreen() {
         }
         item {
             Box(
-                Modifier.aspectRatio(0.75f).clip(RoundedCornerShape(20.dp)).border(2.dp, Palette.Pink, RoundedCornerShape(20.dp))
+                Modifier.aspectRatio(0.75f).clip(RoundedCornerShape(20.dp)).border(2.dp, Palette.Line, RoundedCornerShape(20.dp))
                     .clickable {
                         val page = Page(System.currentTimeMillis(), PAGE_COLORS[Pages.all.size % PAGE_COLORS.size].toArgb(), emptyList())
                         Pages.put(page)
@@ -258,7 +259,7 @@ private fun PageCanvas(page: Page, selected: Long?, onSelect: (Long?) -> Unit, o
                         scaleY = live.scale
                         rotationZ = live.rotation
                     }
-                    .then(if (sel) Modifier.border(1.5.dp, Palette.Rose, RoundedCornerShape(8.dp)) else Modifier)
+                    .then(if (sel) Modifier.border(1.5.dp, Palette.Accent, RoundedCornerShape(8.dp)) else Modifier)
                     .then(
                         if (editable) Modifier.pointerInput(item.id) {
                             detectTransformGestures(onGesture = { _, pan, zoom, rot ->
@@ -281,7 +282,7 @@ private fun PageCanvas(page: Page, selected: Long?, onSelect: (Long?) -> Unit, o
                 with(density) {
                     when (item.kind) {
                         "stamp" -> Stamps.all.firstOrNull { it.id.toString() == item.value }?.let {
-                            Thumb(it.image, 500, Modifier.size((w * STAMP_W).toDp()))
+                            Thumb(it.image, 500, Modifier.size((w * STAMP_W).toDp(), (w * STAMP_W * 1.3f).toDp()))
                         }
                         "sticker" -> Text(item.value, fontSize = (w * STICKER_SIZE).toSp(), color = Color(item.color))
                         else -> Text(
@@ -357,10 +358,10 @@ private fun PageEditor(start: Page, onClose: () -> Unit) {
             }
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Bubble(R.drawable.ic_camera, "Thêm tem", color = if (panel == "stamp") Palette.Pink else Palette.PinkSoft) { panel = if (panel == "stamp") "" else "stamp" }
+                Bubble(R.drawable.ic_camera, "Thêm tem", color = if (panel == "stamp") Palette.Line else Palette.Soft) { panel = if (panel == "stamp") "" else "stamp" }
                 Bubble(R.drawable.ic_text, "Thêm chữ") { editingText = Item(System.currentTimeMillis(), "text", "") }
-                Bubble(R.drawable.ic_heart, "Thêm sticker", color = if (panel == "sticker") Palette.Pink else Palette.PinkSoft) { panel = if (panel == "sticker") "" else "sticker" }
-                Bubble(R.drawable.ic_palette, "Màu nền", color = if (panel == "bg") Palette.Pink else Palette.PinkSoft) { panel = if (panel == "bg") "" else "bg" }
+                Bubble(R.drawable.ic_heart, "Thêm sticker", color = if (panel == "sticker") Palette.Line else Palette.Soft) { panel = if (panel == "sticker") "" else "sticker" }
+                Bubble(R.drawable.ic_palette, "Màu nền", color = if (panel == "bg") Palette.Line else Palette.Soft) { panel = if (panel == "bg") "" else "bg" }
             }
         }
         Spacer(Modifier.size(10.dp))
@@ -374,13 +375,13 @@ private fun PageEditor(start: Page, onClose: () -> Unit) {
             "sticker" -> LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(STICKERS) { e ->
                     Text(e, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.clip(CircleShape).clickable {
-                        add(Item(System.currentTimeMillis(), "sticker", e, color = Palette.Rose.toArgb()))
+                        add(Item(System.currentTimeMillis(), "sticker", e, color = TEXT_COLORS[1].toArgb()))
                     }.padding(8.dp))
                 }
             }
             "bg" -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 PAGE_COLORS.forEach { c ->
-                    Box(Modifier.size(36.dp).clip(CircleShape).background(c).border(1.dp, Palette.Pink, CircleShape).clickable { commit(page.copy(bg = c.toArgb())) })
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(c).border(1.dp, Palette.Line, CircleShape).clickable { commit(page.copy(bg = c.toArgb())) })
                 }
             }
         }

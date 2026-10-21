@@ -154,24 +154,24 @@ fun LettersScreen() {
                     Text("Thư gửi tương lai", style = MaterialTheme.typography.titleLarge)
                     Text("viết hôm nay, mở vào một ngày khác", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
                 }
-                Bubble(R.drawable.ic_plus, "Viết thư mới", color = Palette.Pink) { writing = true }
+                Bubble(R.drawable.ic_plus, "Viết thư mới", color = Palette.Line) { writing = true }
             }
         }
         if (Letters.all.isEmpty()) item {
             Column(Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Envelope(Palette.PinkSoft, Modifier.size(140.dp, 96.dp))
+                Envelope(Palette.Soft, Modifier.size(140.dp, 96.dp))
                 Text("Chưa có lá thư nào.", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 16.dp))
                 Text("Viết cho chính mình của 1 năm sau nhé!", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
             }
         }
         items(Letters.all, key = { it.id }) { l ->
             val tint = when {
-                l.opened -> Palette.Paper
-                l.ready -> Palette.Pink
-                else -> listOf(Palette.PinkSoft, Palette.Mint, Palette.Butter, Palette.Sky, Palette.Lilac)[(l.id % 5).toInt()]
+                l.opened -> Palette.Card
+                l.ready -> Palette.Line
+                else -> listOf(Palette.Blush, Palette.Mint, Palette.Butter, Palette.Sky, Palette.Lilac)[(l.id % 5).toInt()]
             }
             Row(
-                Modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp)).background(Palette.Paper)
+                Modifier.fillMaxWidth().shadow(3.dp, RoundedCornerShape(22.dp)).clip(RoundedCornerShape(22.dp)).background(Palette.Card)
                     .clickable {
                         if (l.ready) {
                             if (!l.opened) Letters.put(context, l.copy(opened = true))
@@ -188,7 +188,7 @@ fun LettersScreen() {
                             Text("đã mở · viết ngày ${l.writtenDay.format(DMY)}", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
                         }
                         l.ready -> {
-                            Text("Đã đến ngày rồi!", style = MaterialTheme.typography.titleMedium, color = Palette.Rose)
+                            Text("Đã đến ngày rồi!", style = MaterialTheme.typography.titleMedium, color = Palette.Accent)
                             Text("chạm để mở thư", style = MaterialTheme.typography.bodySmall, color = Palette.InkSoft)
                         }
                         else -> {
@@ -214,7 +214,7 @@ private fun Envelope(color: Color, modifier: Modifier) {
             lineTo(size.width / 2, size.height * 0.58f)
             lineTo(size.width * 0.94f, size.height * 0.1f)
         }, Palette.Ink.copy(alpha = 0.25f), style = Stroke(3f))
-        drawCircle(Palette.Rose, size.minDimension * 0.13f, Offset(size.width / 2, size.height * 0.58f))
+        drawCircle(Palette.Accent, size.minDimension * 0.13f, Offset(size.width / 2, size.height * 0.58f))
     }
 }
 
@@ -235,12 +235,12 @@ private fun WriteLetter(onDone: () -> Unit) {
         }
         // The letter paper: soft lines, no borders.
         Column(
-            Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)).background(Palette.Paper, RoundedCornerShape(24.dp)).padding(20.dp),
+            Modifier.fillMaxWidth().shadow(4.dp, RoundedCornerShape(24.dp)).background(Palette.Card, RoundedCornerShape(24.dp)).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Gửi tôi của ngày ${openDay.format(DMY)},", style = MaterialTheme.typography.labelLarge, color = Palette.Rose)
+            Text("Gửi tôi của ngày ${openDay.format(DMY)},", style = MaterialTheme.typography.labelLarge, color = Palette.Accent)
             Field(title, { title = it }, "Tiêu đề (không bắt buộc)", MaterialTheme.typography.titleMedium)
-            Box(Modifier.fillMaxWidth().size(1.dp).background(Palette.PinkSoft))
+            Box(Modifier.fillMaxWidth().size(1.dp).background(Palette.Soft))
             Field(body, { body = it }, "Hôm nay mình muốn kể...", MaterialTheme.typography.bodyLarge, minHeight = 160)
         }
 
@@ -252,7 +252,7 @@ private fun WriteLetter(onDone: () -> Unit) {
                     Thumb(
                         s.image, 200,
                         Modifier.size(64.dp).clip(RoundedCornerShape(12.dp))
-                            .then(if (on) Modifier.border(2.dp, Palette.Rose, RoundedCornerShape(12.dp)) else Modifier)
+                            .then(if (on) Modifier.border(2.dp, Palette.Accent, RoundedCornerShape(12.dp)) else Modifier)
                             .clickable { stampId = if (on) null else s.id.toString() },
                     )
                 }
@@ -274,7 +274,7 @@ private fun WriteLetter(onDone: () -> Unit) {
 
         Box(
             Modifier.fillMaxWidth().padding(vertical = 8.dp).clip(CircleShape)
-                .background(if (body.isBlank()) Palette.PinkSoft else Palette.Rose)
+                .background(if (body.isBlank()) Palette.Soft else Palette.Accent)
                 .clickable(enabled = body.isNotBlank()) {
                     val openAt = openDay.atTime(8, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
                     val letter = Letter(System.currentTimeMillis(), title.trim(), body.trim(), stampId, openAt, false)
@@ -285,7 +285,7 @@ private fun WriteLetter(onDone: () -> Unit) {
                 }
                 .padding(14.dp),
             contentAlignment = Alignment.Center,
-        ) { Text("Niêm phong và gửi 💌", style = MaterialTheme.typography.labelLarge, color = if (body.isBlank()) Palette.InkSoft else Color.White) }
+        ) { Text("Niêm phong và gửi 💌", style = MaterialTheme.typography.labelLarge, color = if (body.isBlank()) Palette.InkSoft else Palette.OnAccent) }
         Spacer(Modifier.size(12.dp))
     }
 }
@@ -295,7 +295,7 @@ private fun Field(value: String, onChange: (String) -> Unit, hint: String, style
     BasicTextField(
         value, onChange,
         textStyle = style,
-        cursorBrush = SolidColor(Palette.Rose),
+        cursorBrush = SolidColor(Palette.Accent),
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp).heightIn(min = minHeight.dp),
         decorationBox = { inner -> Box { if (value.isEmpty()) Text(hint, style = style, color = Palette.InkSoft); inner() } },
     )
@@ -309,10 +309,10 @@ private fun ReadLetter(letter: Letter, onClose: () -> Unit) {
             Bubble(R.drawable.ic_back, "Quay lại", onClick = onClose)
         }
         Column(
-            Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp)).background(Palette.Paper, RoundedCornerShape(24.dp)).padding(24.dp),
+            Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(24.dp)).background(Palette.Card, RoundedCornerShape(24.dp)).padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text("Viết ngày ${letter.writtenDay.format(DMY)}", style = MaterialTheme.typography.labelMedium, color = Palette.Rose)
+            Text("Viết ngày ${letter.writtenDay.format(DMY)}", style = MaterialTheme.typography.labelMedium, color = Palette.Accent)
             if (letter.title.isNotBlank()) Text(letter.title, style = MaterialTheme.typography.titleLarge)
             Text(letter.body, style = MaterialTheme.typography.bodyLarge)
             Stamps.all.firstOrNull { it.id.toString() == letter.stampId }?.let {

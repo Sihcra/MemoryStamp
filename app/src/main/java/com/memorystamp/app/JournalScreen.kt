@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -103,8 +104,8 @@ fun JournalScreen(onSettings: () -> Unit) {
                 val selected = day == selectedDay
                 Box(
                     Modifier.aspectRatio(1f).clip(RoundedCornerShape(12.dp))
-                        .background(if (day == today) Palette.PinkSoft else Palette.Paper)
-                        .then(if (selected) Modifier.border(2.dp, Palette.Rose, RoundedCornerShape(12.dp)) else Modifier)
+                        .background(if (day == today) Palette.Soft else Palette.Card)
+                        .then(if (selected) Modifier.border(2.dp, Palette.Accent, RoundedCornerShape(12.dp)) else Modifier)
                         .clickable { selectedDay = day },
                     contentAlignment = Alignment.Center,
                 ) {
@@ -145,8 +146,8 @@ private fun StampDetail(stamp: Stamp, onClose: () -> Unit) {
     }
     BackHandler { saveAndClose() }
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = Palette.Rose, unfocusedBorderColor = Palette.PinkSoft,
-        focusedContainerColor = Palette.Paper, unfocusedContainerColor = Palette.Paper,
+        focusedBorderColor = Palette.Accent, unfocusedBorderColor = Palette.Soft,
+        focusedContainerColor = Palette.Card, unfocusedContainerColor = Palette.Card,
     )
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -170,15 +171,15 @@ private fun StampDetail(stamp: Stamp, onClose: () -> Unit) {
         OutlinedTextField(title, { title = it }, Modifier.fillMaxWidth(), placeholder = { Text("Đặt tên cho tem") }, singleLine = true, shape = RoundedCornerShape(18.dp), colors = fieldColors)
         OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), placeholder = { Text("Hôm nay có gì vui?") }, minLines = 3, shape = RoundedCornerShape(18.dp), colors = fieldColors)
         Box(
-            Modifier.fillMaxWidth().clip(CircleShape).background(Palette.Rose).clickable(onClick = ::saveAndClose).padding(14.dp),
+            Modifier.fillMaxWidth().clip(CircleShape).background(Palette.Accent).clickable(onClick = ::saveAndClose).padding(14.dp),
             contentAlignment = Alignment.Center,
-        ) { Text("Lưu", style = MaterialTheme.typography.labelLarge, color = androidx.compose.ui.graphics.Color.White) }
+        ) { Text("Lưu", style = MaterialTheme.typography.labelLarge, color = Palette.OnAccent) }
         Spacer(Modifier.size(12.dp))
     }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            containerColor = Palette.Paper,
+            containerColor = Palette.Card,
             title = { Text("Xóa tem này?") },
             text = { Text("Tem sẽ bị xóa khỏi máy và không khôi phục được (trừ khi bạn đã xuất sao lưu).") },
             confirmButton = { TextButton({ Stamps.delete(stamp); onClose() }) { Text("Xóa") } },
@@ -190,5 +191,5 @@ private fun StampDetail(stamp: Stamp, onClose: () -> Unit) {
 @Composable
 fun Thumb(file: File, px: Int, modifier: Modifier) {
     val bmp by produceState<Bitmap?>(null, file, px) { value = withContext(Dispatchers.IO) { loadThumb(file, px) } }
-    Box(modifier) { bmp?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize()) } }
+    Box(modifier) { bmp?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit) } }
 }

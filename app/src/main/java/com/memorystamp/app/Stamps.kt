@@ -119,31 +119,53 @@ object Stamps {
     }
 }
 
-/** Cuts the centre square of a photo, shrinks it to [size] px. */
-fun Bitmap.centerSquare(size: Int = 1080): Bitmap {
-    val s = minOf(width, height)
-    val square = Bitmap.createBitmap(this, (width - s) / 2, (height - s) / 2, s, s)
-    return Bitmap.createScaledBitmap(square, size, size, true)
+/** Stamp photos are portrait 3:4. */
+const val STAMP_ASPECT = 3f / 4f
+
+/**
+ * Cuts the part of the photo that sat under the stamp window on screen. The preview fills a viewW×viewH box
+ * (centre crop) and the window is winW×winH in the middle of it. Without a view, takes the largest centred 3:4.
+ */
+fun Bitmap.cropStamp(viewW: Float = 0f, viewH: Float = 0f, winW: Float = 0f, outW: Int = 900): Bitmap {
+    var cw: Float
+    var ch: Float
+    if (viewW > 0 && viewH > 0) {
+        val scale = maxOf(viewW / width, viewH / height)
+        cw = winW / scale
+        ch = cw / STAMP_ASPECT
+    } else {
+        cw = minOf(width.toFloat(), height * STAMP_ASPECT)
+        ch = cw / STAMP_ASPECT
+    }
+    cw = cw.coerceAtMost(width.toFloat())
+    ch = ch.coerceAtMost(height.toFloat())
+    val crop = Bitmap.createBitmap(this, ((width - cw) / 2).toInt(), ((height - ch) / 2).toInt(), cw.toInt(), ch.toInt())
+    return Bitmap.createScaledBitmap(crop, outW, (outW / STAMP_ASPECT).toInt(), true)
 }
 
 /** Puts the photo on white stamp paper and punches the perforated edge. Holes are transparent in the PNG. */
 fun makeStamp(photo: Bitmap): Bitmap {
     val margin = photo.width / 14f
-    val size = (photo.width + margin * 2).toInt()
-    val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+    val w = photo.width + margin * 2
+    val h = photo.height + margin * 2
+    val out = Bitmap.createBitmap(w.toInt(), h.toInt(), Bitmap.Config.ARGB_8888)
     val c = Canvas(out)
-    c.drawColor(Color.rgb(253, 251, 246))
+    c.drawColor(Color.rgb(253, 252, 248))
     c.drawBitmap(photo, margin, margin, Paint(Paint.FILTER_BITMAP_FLAG))
     val hole = Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
     val r = margin * 0.32f
-    val n = 16
-    val step = size / n.toFloat()
-    for (i in 0..n) {
-        val p = i * step
-        c.drawCircle(p, 0f, r, hole)
-        c.drawCircle(p, size.toFloat(), r, hole)
-        c.drawCircle(0f, p, r, hole)
-        c.drawCircle(size.toFloat(), p, r, hole)
+    val target = margin * 0.95f
+    val nx = (w / target).toInt()
+    val ny = (h / target).toInt()
+    for (i in 0..nx) {
+        val x = i * w / nx
+        c.drawCircle(x, 0f, r, hole)
+        c.drawCircle(x, h, r, hole)
+    }
+    for (i in 0..ny) {
+        val y = i * h / ny
+        c.drawCircle(0f, y, r, hole)
+        c.drawCircle(w, y, r, hole)
     }
     return out
 }

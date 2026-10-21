@@ -5,7 +5,11 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import android.graphics.Color as AndroidColor
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.BackHandler
@@ -52,12 +56,26 @@ import java.time.LocalDate
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         Stamps.load(this)
         Pages.load(this)
         Letters.load(this)
         val startTab = intent.getIntExtra("tab", 0)
-        setContent { CuteTheme { App(startTab) } }
+        val prefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        setContent {
+            var mode by remember { mutableStateOf(prefs.getString("theme", "system") ?: "system") }
+            val systemDark = isSystemInDarkTheme()
+            Palette.dark = mode == "dark" || (mode == "system" && systemDark)
+            LaunchedEffect(Palette.dark) {
+                val bars = if (Palette.dark) SystemBarStyle.dark(AndroidColor.TRANSPARENT) else SystemBarStyle.light(AndroidColor.TRANSPARENT, AndroidColor.TRANSPARENT)
+                enableEdgeToEdge(bars, bars)
+            }
+            CuteTheme {
+                App(startTab, mode) {
+                    mode = it
+                    prefs.edit().putString("theme", it).apply()
+                }
+            }
+        }
     }
 }
 
@@ -69,7 +87,7 @@ private val TABS = listOf(
 )
 
 @Composable
-private fun App(startTab: Int) {
+private fun App(startTab: Int, mode: String, setMode: (String) -> Unit) {
     val prefs = LocalContext.current.getSharedPreferences("settings", Context.MODE_PRIVATE)
     var tab by rememberSaveable { mutableIntStateOf(startTab) }
     var settings by rememberSaveable { mutableStateOf(false) }
@@ -77,28 +95,28 @@ private fun App(startTab: Int) {
     val ready = Letters.all.count { it.ready && !it.opened }
 
     Scaffold(
-        containerColor = Palette.Cream,
+        containerColor = Palette.Bg,
         bottomBar = {
             Row(
                 Modifier.navigationBarsPadding().padding(horizontal = 20.dp, vertical = 10.dp).fillMaxWidth()
-                    .shadow(8.dp, CircleShape, ambientColor = Palette.Rose, spotColor = Palette.Rose)
-                    .background(Palette.Paper, CircleShape).padding(6.dp),
+                    .shadow(8.dp, CircleShape)
+                    .background(Palette.Card, CircleShape).padding(6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 TABS.forEach { (icon, label, i) ->
                     val on = tab == i && !settings
                     Row(
-                        Modifier.clip(CircleShape).background(if (on) Palette.PinkSoft else Color.Transparent)
+                        Modifier.clip(CircleShape).background(if (on) Palette.Soft else Color.Transparent)
                             .clickable(onClickLabel = label) { tab = i; settings = false }
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box {
-                            Icon(painterResource(icon), label, tint = if (on) Palette.Rose else Palette.Ink, modifier = Modifier.size(22.dp))
-                            if (i == 3 && ready > 0) Box(Modifier.align(Alignment.TopEnd).size(8.dp).background(Palette.Rose, CircleShape))
+                            Icon(painterResource(icon), label, tint = if (on) Palette.Accent else Palette.Ink, modifier = Modifier.size(22.dp))
+                            if (i == 3 && ready > 0) Box(Modifier.align(Alignment.TopEnd).size(8.dp).background(Palette.Accent, CircleShape))
                         }
                         AnimatedVisibility(on) {
-                            Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Rose, modifier = Modifier.padding(start = 6.dp))
+                            Text(label, style = MaterialTheme.typography.labelLarge, color = Palette.Accent, modifier = Modifier.padding(start = 6.dp))
                         }
                     }
                 }
@@ -108,7 +126,7 @@ private fun App(startTab: Int) {
         Box(Modifier.padding(top = pad.calculateTopPadding(), bottom = pad.calculateBottomPadding())) {
             if (settings) {
                 BackHandler { settings = false }
-                SettingsScreen(gallery, { settings = false }) {
+                SettingsScreen(gallery, mode, setMode, { settings = false }) {
                     gallery = it
                     prefs.edit().putBoolean("gallery", it).apply()
                 }
@@ -123,7 +141,7 @@ private fun App(startTab: Int) {
 }
 
 @Composable
-private fun SettingsScreen(gallery: Boolean, onBack: () -> Unit, setGallery: (Boolean) -> Unit) {
+private fun SettingsScreen(gallery: Boolean, mode: String, setMode: (String) -> Unit, onBack: () -> Unit, setGallery: (Boolean) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val export = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
@@ -149,7 +167,13 @@ private fun SettingsScreen(gallery: Boolean, onBack: () -> Unit, setGallery: (Bo
                 Text("Lưu thêm vào thư viện ảnh", style = MaterialTheme.typography.titleMedium)
                 Text("Tem hiện trong Gallery (Pictures/MemoryStamp) và vẫn còn khi gỡ app.", style = MaterialTheme.typography.bodySmall)
             }
-            Switch(gallery, setGallery, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Rose, uncheckedTrackColor = Palette.PinkSoft, uncheckedBorderColor = Palette.Pink, uncheckedThumbColor = Palette.Pink))
+            Switch(gallery, setGallery, colors = SwitchDefaults.colors(checkedTrackColor = Palette.Accent, uncheckedTrackColor = Palette.Soft, uncheckedBorderColor = Palette.Line, uncheckedThumbColor = Palette.Line))
+        }
+        Text("Giao diện", style = MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("light" to "Sáng", "dark" to "Tối", "system" to "Theo máy").forEach { (key, label) ->
+                Pill(label, mode == key) { setMode(key) }
+            }
         }
         Text("Sao lưu", style = MaterialTheme.typography.titleMedium)
         Text(
